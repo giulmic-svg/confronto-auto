@@ -65,10 +65,14 @@ def calcola_costi_elettrica(auto, anni, km_annui, costo_corrente, perc_fv,
 
 
 # ---------------------------------------------------------
-# COLONNA SINISTRA — INPUT DATI
+# LAYOUT: COLONNA SINISTRA (30%) + COLONNA DESTRA (70%)
 # ---------------------------------------------------------
 
-col1, col2 = st.columns([2, 1])
+col1, col2 = st.columns([0.30, 0.70])
+
+# ---------------------------------------------------------
+# COLONNA SINISTRA — INPUT DATI
+# ---------------------------------------------------------
 
 with col1:
     st.header("Parametri generali")
@@ -79,12 +83,24 @@ with col1:
     perc_fv = st.slider("Percentuale ricarica fotovoltaico (%)", 0, 100, 30)
 
     st.header("Auto attuale (diesel)")
+    nome_diesel = st.text_input("Nome auto diesel", "La mia auto")
     val_diesel = st.number_input("Valore iniziale (€)", 0, 100000, 20000)
     cons_diesel = st.number_input("Consumo (litri/100 km)", 2.0, 15.0, 6.0)
     ass_diesel = st.number_input("Assicurazione annua (€)", 0, 3000, 600)
     bollo_diesel = st.number_input("Bollo annuo (€)", 0, 2000, 400)
     manut_diesel = st.number_input("Manutenzione annua (€)", 0, 3000, 500)
     val_residuo_diesel = st.number_input("Valore residuo (€)", 0, 50000, 8000)
+
+    st.header("Auto nuova (elettrica)")
+    auto_principale = {
+        "nome": st.text_input("Nome auto elettrica principale", "Auto nuova"),
+        "prezzo": st.number_input("Prezzo (€)", 10000, 100000, 35000),
+        "consumo": st.number_input("Consumo (kWh/100 km)", 10, 30, 15),
+        "assicurazione": st.number_input("Assicurazione (€)", 0, 3000, 500),
+        "bollo": st.number_input("Bollo (€)", 0, 2000, 0),
+        "manutenzione": st.number_input("Manutenzione (€)", 0, 3000, 400),
+        "valore_residuo": st.number_input("Valore residuo (€)", 0, 50000, 15000)
+    }
 
     st.header("Finanziamento auto nuova")
     anticipo = st.number_input("Anticipo (€)", 0, 30000, 5000)
@@ -93,27 +109,22 @@ with col1:
     costo_istruttoria = st.number_input("Costo istruttoria (€)", 0, 2000, 300)
     costo_wallbox = st.number_input("Costo wallbox (€)", 0, 5000, 1500)
 
-    st.header("Auto elettriche")
-    default_autos = [
-        {"nome": "Elettrica A", "prezzo": 35000, "consumo": 15,
-         "assicurazione": 500, "bollo": 0, "manutenzione": 400, "valore_residuo": 15000},
-        {"nome": "Elettrica B", "prezzo": 30000, "consumo": 14,
-         "assicurazione": 450, "bollo": 0, "manutenzione": 350, "valore_residuo": 12000},
-        {"nome": "Elettrica C", "prezzo": 40000, "consumo": 17,
-         "assicurazione": 550, "bollo": 0, "manutenzione": 450, "valore_residuo": 18000},
-    ]
+    st.header("Aggiungi altre auto elettriche")
+    num_extra = st.number_input("Quante auto aggiuntive vuoi?", 0, 10, 0)
 
-    autos = []
-    for auto in default_autos:
-        st.subheader(f"{auto['nome']}")
-        auto["nome"] = st.text_input(f"Nome {auto['nome']}", auto["nome"])
-        auto["prezzo"] = st.number_input(f"Prezzo {auto['nome']} (€)", 10000, 100000, auto["prezzo"])
-        auto["consumo"] = st.number_input(f"Consumo {auto['nome']} (kWh/100 km)", 10, 30, auto["consumo"])
-        auto["assicurazione"] = st.number_input(f"Assicurazione {auto['nome']} (€)", 0, 3000, auto["assicurazione"])
-        auto["bollo"] = st.number_input(f"Bollo {auto['nome']} (€)", 0, 2000, auto["bollo"])
-        auto["manutenzione"] = st.number_input(f"Manutenzione {auto['nome']} (€)", 0, 3000, auto["manutenzione"])
-        auto["valore_residuo"] = st.number_input(f"Valore residuo {auto['nome']} (€)", 0, 50000, auto["valore_residuo"])
-        autos.append(auto)
+    autos_extra = []
+    for i in range(num_extra):
+        st.subheader(f"Auto aggiuntiva {i+1}")
+        auto = {
+            "nome": st.text_input(f"Nome auto {i+1}", f"Auto {i+1}"),
+            "prezzo": st.number_input(f"Prezzo auto {i+1} (€)", 10000, 100000, 30000),
+            "consumo": st.number_input(f"Consumo auto {i+1} (kWh/100 km)", 10, 30, 14),
+            "assicurazione": st.number_input(f"Assicurazione auto {i+1} (€)", 0, 3000, 450),
+            "bollo": st.number_input(f"Bollo auto {i+1} (€)", 0, 2000, 0),
+            "manutenzione": st.number_input(f"Manutenzione auto {i+1} (€)", 0, 3000, 350),
+            "valore_residuo": st.number_input(f"Valore residuo auto {i+1} (€)", 0, 50000, 12000)
+        }
+        autos_extra.append(auto)
 
 # ---------------------------------------------------------
 # CALCOLI
@@ -125,71 +136,71 @@ costi_diesel = calcola_costi_diesel(
     val_diesel, val_residuo_diesel
 )
 
-nomi_auto = [a["nome"] for a in autos]
-auto_sel_nome = col2.selectbox("Auto elettrica da confrontare", nomi_auto)
-auto_sel = next(a for a in autos if a["nome"] == auto_sel_nome)
-
-costi_elettrica, costo_fin_totale = calcola_costi_elettrica(
-    auto_sel, anni, km_annui, costo_corrente, perc_fv,
+# Auto principale
+costi_auto_principale, costo_fin_totale = calcola_costi_elettrica(
+    auto_principale, anni, km_annui, costo_corrente, perc_fv,
     anticipo, costo_istruttoria, costo_wallbox,
     num_rate, tasso_annuo
 )
 
 # ---------------------------------------------------------
-# SIDEBAR — GRAFICO + RIEPILOGO COMPLETO
+# COLONNA DESTRA — GRAFICO + RIEPILOGO
 # ---------------------------------------------------------
 
-st.sidebar.header("Grafico dei costi nel tempo")
+with col2:
+    st.header("Grafico dei costi nel tempo")
 
-anni_list = list(range(anni + 1))
+    anni_list = list(range(anni + 1))
 
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=anni_list, y=costi_diesel, mode='lines+markers', name='Diesel'))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=anni_list, y=costi_diesel, mode='lines+markers', name=nome_diesel))
 
-for auto in autos:
-    costi_auto, _ = calcola_costi_elettrica(
-        auto, anni, km_annui, costo_corrente, perc_fv,
-        anticipo, costo_istruttoria, costo_wallbox,
-        num_rate, tasso_annuo
+    fig.add_trace(go.Scatter(x=anni_list, y=costi_auto_principale, mode='lines+markers', name=auto_principale["nome"]))
+
+    for auto in autos_extra:
+        costi_extra, _ = calcola_costi_elettrica(
+            auto, anni, km_annui, costo_corrente, perc_fv,
+            anticipo, costo_istruttoria, costo_wallbox,
+            num_rate, tasso_annuo
+        )
+        fig.add_trace(go.Scatter(x=anni_list, y=costi_extra, mode='lines+markers', name=auto["nome"]))
+
+    fig.update_layout(
+        xaxis_title="Anni",
+        yaxis_title="Costo cumulato (€)",
+        hovermode="x unified",
+        height=600
     )
-    fig.add_trace(go.Scatter(x=anni_list, y=costi_auto, mode='lines+markers', name=auto["nome"]))
 
-fig.update_layout(
-    xaxis_title="Anni",
-    yaxis_title="Costo cumulato (€)",
-    hovermode="x unified",
-    height=500
-)
+    st.plotly_chart(fig, use_container_width=True)
 
-st.sidebar.plotly_chart(fig, use_container_width=True)
+    # ---------------------------------------------------------
+    # RIEPILOGO COMPLETO
+    # ---------------------------------------------------------
 
-# ---------------------------------------------------------
-# RIEPILOGO COMPLETO NELLA SIDEBAR
-# ---------------------------------------------------------
+    st.header("Riepilogo completo")
 
-st.sidebar.header("Riepilogo completo")
+    tempo_pareggio = None
+    for t in range(anni + 1):
+        if costi_auto_principale[t] < costi_diesel[t]:
+            tempo_pareggio = t
+            break
 
-tempo_pareggio = None
-for t in range(anni + 1):
-    if costi_elettrica[t] < costi_diesel[t]:
-        tempo_pareggio = t
-        break
+    if tempo_pareggio is None:
+        st.write("**Tempo di pareggio:** Nessun pareggio nel periodo")
+    else:
+        st.write(f"**Tempo di pareggio:** {tempo_pareggio} anni")
 
-if tempo_pareggio is None:
-    st.sidebar.write("**Tempo di pareggio:** Nessun pareggio nel periodo")
-else:
-    st.sidebar.write(f"**Tempo di pareggio:** {tempo_pareggio} anni")
+    costo_carburante_annuo = km_annui * cons_diesel / 100 * costo_carburante
+    costi_fissi_diesel = ass_diesel + bollo_diesel + manut_diesel
 
-# Risparmio annuo medio
-costo_carburante_annuo = km_annui * cons_diesel / 100 * costo_carburante
-costi_fissi_diesel = ass_diesel + bollo_diesel + manut_diesel
+    costo_corrente_eff = costo_corrente * (1 - perc_fv / 100)
+    costo_energia_annuo = km_annui * auto_principale["consumo"] / 100 * costo_corrente_eff
+    costi_fissi_elettrica = auto_principale["assicurazione"] + auto_principale["bollo"] + auto_principale["manutenzione"]
 
-costo_corrente_eff = costo_corrente * (1 - perc_fv / 100)
-costo_energia_annuo = km_annui * auto_sel["consumo"] / 100 * costo_corrente_eff
-costi_fissi_elettrica = auto_sel["assicurazione"] + auto_sel["bollo"] + auto_sel["manutenzione"]
+    risparmio_annuo = (costo_carburante_annuo + costi_fissi_diesel) - (costo_energia_annuo + costi_fissi_elettrica)
 
-risparmio_annuo = (costo_carburante_annuo + costi_fissi_diesel) - (costo_energia_annuo + costi_fissi_elettrica)
+    st.write(f"**Costo totale finanziamento:** {costo_fin_totale:,.0f} €")
+    st.write(f"**Risparmio annuo medio:** {risparmio_annuo:,.0f} €")
+    st.write(f"**Auto selezionata:** {auto_principale['nome']}")
 
-st.sidebar.write(f"**Costo totale finanziamento:** {costo_fin_totale:,.0f} €")
-st.sidebar.write(f"**Risparmio annuo medio:** {risparmio_annuo:,.0f} €")
-st.sidebar.write(f"**Auto selezionata:** {auto_sel_nome}")
