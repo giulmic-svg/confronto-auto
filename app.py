@@ -1,12 +1,16 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Confronto Auto Diesel vs Elettriche", layout="wide")
+# ---------------------------------------------------------
+# CONFIGURAZIONE PAGINA
+# ---------------------------------------------------------
+st.set_page_config(page_title="Confronto costi auto", layout="wide")
+st.title("Confronto costi auto")
 
-# -----------------------------
-# Funzioni di calcolo
-# -----------------------------
+# ---------------------------------------------------------
+# FUNZIONI DI CALCOLO
+# ---------------------------------------------------------
 
 def calcola_costi_diesel(anni, km_annui, costo_carburante, consumo, ass, bollo, manut, val_iniziale, val_residuo):
     costo_carburante_annuo = km_annui * consumo / 100 * costo_carburante
@@ -30,7 +34,7 @@ def calcola_finanziamento(prezzo_auto, anticipo, num_rate, tasso_annuo):
         rata = importo_finanziato * (tasso_mensile * (1 + tasso_mensile)**num_rate) / ((1 + tasso_mensile)**num_rate - 1)
 
     costo_totale = rata * num_rate
-    return costo_totale
+    return costo_totale, rata
 
 
 def calcola_costi_elettrica(auto, anni, km_annui, costo_corrente, perc_fv,
@@ -43,30 +47,28 @@ def calcola_costi_elettrica(auto, anni, km_annui, costo_corrente, perc_fv,
     costi_fissi_annui = auto["assicurazione"] + auto["bollo"] + auto["manutenzione"]
     ammortamento_annuo = (auto["prezzo"] - auto["valore_residuo"]) / anni
 
-    costo_fin_totale = calcola_finanziamento(auto["prezzo"], anticipo, num_rate, tasso_annuo)
-    costo_fin_annuo = costo_fin_totale / anni
+    costo_fin_totale, rata_mensile = calcola_finanziamento(auto["prezzo"], anticipo, num_rate, tasso_annuo)
+    anni_fin = num_rate / 12
+    costo_rate_annuo = rata_mensile * 12
 
     costi_iniziali = anticipo + costo_istruttoria + costo_wallbox
 
     costi = []
     for t in range(anni + 1):
-        costo_t = costi_iniziali + t * (costo_energia_annuo + costi_fissi_annui + ammortamento_annuo + costo_fin_annuo)
+        if t < anni_fin:
+            costo_t = costi_iniziali + t * (costo_energia_annuo + costi_fissi_annui + ammortamento_annuo) + costo_rate_annuo * t
+        else:
+            costo_t = costi_iniziali + anni_fin * costo_rate_annuo + t * (costo_energia_annuo + costi_fissi_annui + ammortamento_annuo)
         costi.append(costo_t)
 
     return costi, costo_fin_totale
 
 
-# -----------------------------
-# Interfaccia Streamlit
-# -----------------------------
+# ---------------------------------------------------------
+# COLONNA SINISTRA — INPUT DATI
+# ---------------------------------------------------------
 
-st.title("Confronto costi auto diesel vs auto elettriche")
-
-col1, col2, col3 = st.columns([1.2, 1, 2])
-
-# -----------------------------
-# Colonna 1 – Input
-# -----------------------------
+col1, col2 = st.columns([2, 1])
 
 with col1:
     st.header("Parametri generali")
@@ -93,17 +95,18 @@ with col1:
 
     st.header("Auto elettriche")
     default_autos = [
-        {"nome": "Elettrica A", "prezzo": 35000, "rata_finale": 10000, "consumo": 15,
+        {"nome": "Elettrica A", "prezzo": 35000, "consumo": 15,
          "assicurazione": 500, "bollo": 0, "manutenzione": 400, "valore_residuo": 15000},
-        {"nome": "Elettrica B", "prezzo": 30000, "rata_finale": 8000, "consumo": 14,
+        {"nome": "Elettrica B", "prezzo": 30000, "consumo": 14,
          "assicurazione": 450, "bollo": 0, "manutenzione": 350, "valore_residuo": 12000},
-        {"nome": "Elettrica C", "prezzo": 40000, "rata_finale": 12000, "consumo": 17,
+        {"nome": "Elettrica C", "prezzo": 40000, "consumo": 17,
          "assicurazione": 550, "bollo": 0, "manutenzione": 450, "valore_residuo": 18000},
     ]
 
     autos = []
     for auto in default_autos:
-        st.subheader(auto["nome"])
+        st.subheader(f"{auto['nome']}")
+        auto["nome"] = st.text_input(f"Nome {auto['nome']}", auto["nome"])
         auto["prezzo"] = st.number_input(f"Prezzo {auto['nome']} (€)", 10000, 100000, auto["prezzo"])
         auto["consumo"] = st.number_input(f"Consumo {auto['nome']} (kWh/100 km)", 10, 30, auto["consumo"])
         auto["assicurazione"] = st.number_input(f"Assicurazione {auto['nome']} (€)", 0, 3000, auto["assicurazione"])
@@ -112,78 +115,81 @@ with col1:
         auto["valore_residuo"] = st.number_input(f"Valore residuo {auto['nome']} (€)", 0, 50000, auto["valore_residuo"])
         autos.append(auto)
 
-# -----------------------------
-# Colonna 2 – Riepilogo
-# -----------------------------
+# ---------------------------------------------------------
+# CALCOLI
+# ---------------------------------------------------------
 
-with col2:
-    st.header("Riepilogo confronto")
+costi_diesel = calcola_costi_diesel(
+    anni, km_annui, costo_carburante, cons_diesel,
+    ass_diesel, bollo_diesel, manut_diesel,
+    val_diesel, val_residuo_diesel
+)
 
-    nomi_auto = [a["nome"] for a in autos]
-    auto_sel_nome = st.selectbox("Auto elettrica da confrontare", nomi_auto)
+nomi_auto = [a["nome"] for a in autos]
+auto_sel_nome = col2.selectbox("Auto elettrica da confrontare", nomi_auto)
+auto_sel = next(a for a in autos if a["nome"] == auto_sel_nome)
 
-    auto_sel = next(a for a in autos if a["nome"] == auto_sel_nome)
+costi_elettrica, costo_fin_totale = calcola_costi_elettrica(
+    auto_sel, anni, km_annui, costo_corrente, perc_fv,
+    anticipo, costo_istruttoria, costo_wallbox,
+    num_rate, tasso_annuo
+)
 
-    costi_diesel = calcola_costi_diesel(
-        anni, km_annui, costo_carburante, cons_diesel,
-        ass_diesel, bollo_diesel, manut_diesel,
-        val_diesel, val_residuo_diesel
-    )
+# ---------------------------------------------------------
+# SIDEBAR — GRAFICO + RIEPILOGO COMPLETO
+# ---------------------------------------------------------
 
-    costi_elettrica, costo_fin_totale = calcola_costi_elettrica(
-        auto_sel, anni, km_annui, costo_corrente, perc_fv,
+st.sidebar.header("Grafico dei costi nel tempo")
+
+anni_list = list(range(anni + 1))
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=anni_list, y=costi_diesel, mode='lines+markers', name='Diesel'))
+
+for auto in autos:
+    costi_auto, _ = calcola_costi_elettrica(
+        auto, anni, km_annui, costo_corrente, perc_fv,
         anticipo, costo_istruttoria, costo_wallbox,
         num_rate, tasso_annuo
     )
+    fig.add_trace(go.Scatter(x=anni_list, y=costi_auto, mode='lines+markers', name=auto["nome"]))
 
-    st.write(f"**Costo totale finanziamento:** {costo_fin_totale:,.0f} €")
+fig.update_layout(
+    xaxis_title="Anni",
+    yaxis_title="Costo cumulato (€)",
+    hovermode="x unified",
+    height=500
+)
 
-    tempo_pareggio = None
-    for t in range(anni + 1):
-        if costi_elettrica[t] < costi_diesel[t]:
-            tempo_pareggio = t
-            break
+st.sidebar.plotly_chart(fig, use_container_width=True)
 
-    if tempo_pareggio is None:
-        st.write("**Tempo di pareggio:** Nessun pareggio nel periodo")
-    else:
-        st.write(f"**Tempo di pareggio:** {tempo_pareggio} anni")
+# ---------------------------------------------------------
+# RIEPILOGO COMPLETO NELLA SIDEBAR
+# ---------------------------------------------------------
 
-    # Risparmio annuo medio
-    costo_carburante_annuo = km_annui * cons_diesel / 100 * costo_carburante
-    costi_fissi_diesel = ass_diesel + bollo_diesel + manut_diesel
+st.sidebar.header("Riepilogo completo")
 
-    costo_corrente_eff = costo_corrente * (1 - perc_fv / 100)
-    costo_energia_annuo = km_annui * auto_sel["consumo"] / 100 * costo_corrente_eff
-    costi_fissi_elettrica = auto_sel["assicurazione"] + auto_sel["bollo"] + auto_sel["manutenzione"]
+tempo_pareggio = None
+for t in range(anni + 1):
+    if costi_elettrica[t] < costi_diesel[t]:
+        tempo_pareggio = t
+        break
 
-    risparmio_annuo = (costo_carburante_annuo + costi_fissi_diesel) - (costo_energia_annuo + costi_fissi_elettrica)
-    st.write(f"**Risparmio annuo medio:** {risparmio_annuo:,.0f} €")
+if tempo_pareggio is None:
+    st.sidebar.write("**Tempo di pareggio:** Nessun pareggio nel periodo")
+else:
+    st.sidebar.write(f"**Tempo di pareggio:** {tempo_pareggio} anni")
 
-# -----------------------------
-# Colonna 3 – Grafico
-# -----------------------------
+# Risparmio annuo medio
+costo_carburante_annuo = km_annui * cons_diesel / 100 * costo_carburante
+costi_fissi_diesel = ass_diesel + bollo_diesel + manut_diesel
 
-with col3:
-    st.header("Grafico dei costi nel tempo")
+costo_corrente_eff = costo_corrente * (1 - perc_fv / 100)
+costo_energia_annuo = km_annui * auto_sel["consumo"] / 100 * costo_corrente_eff
+costi_fissi_elettrica = auto_sel["assicurazione"] + auto_sel["bollo"] + auto_sel["manutenzione"]
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+risparmio_annuo = (costo_carburante_annuo + costi_fissi_diesel) - (costo_energia_annuo + costi_fissi_elettrica)
 
-    anni_list = list(range(anni + 1))
-
-    ax.plot(anni_list, costi_diesel, label="Diesel", color="black")
-
-    for auto in autos:
-        costi_auto, _ = calcola_costi_elettrica(
-            auto, anni, km_annui, costo_corrente, perc_fv,
-            anticipo, costo_istruttoria, costo_wallbox,
-            num_rate, tasso_annuo
-        )
-        ax.plot(anni_list, costi_auto, label=auto["nome"])
-
-    ax.set_xlabel("Anni")
-    ax.set_ylabel("Costo cumulato (€)")
-    ax.grid(True)
-    ax.legend()
-
-    st.pyplot(fig)
+st.sidebar.write(f"**Costo totale finanziamento:** {costo_fin_totale:,.0f} €")
+st.sidebar.write(f"**Risparmio annuo medio:** {risparmio_annuo:,.0f} €")
+st.sidebar.write(f"**Auto selezionata:** {auto_sel_nome}")
