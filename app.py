@@ -9,6 +9,26 @@ st.set_page_config(page_title="Confronto costi auto", layout="wide")
 st.title("Confronto costi auto")
 
 # ---------------------------------------------------------
+# CSS PER LAYOUT SCROLLABILE A SINISTRA E FISSO A DESTRA
+# ---------------------------------------------------------
+st.markdown("""
+<style>
+.left-pane {
+    height: 90vh;
+    overflow-y: scroll;
+    background-color: white;
+    padding-right: 20px;
+}
+.right-pane {
+    position: sticky;
+    top: 0;
+    background-color: white;
+    padding: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
 # FUNZIONI DI CALCOLO
 # ---------------------------------------------------------
 
@@ -65,16 +85,18 @@ def calcola_costi_elettrica(auto, anni, km_annui, costo_corrente, perc_fv,
 
 
 # ---------------------------------------------------------
-# LAYOUT: COLONNA SINISTRA (30%) + COLONNA DESTRA (70%)
+# LAYOUT: COLONNA SINISTRA (SCROLL) + COLONNA DESTRA (FISSA)
 # ---------------------------------------------------------
 
 col1, col2 = st.columns([0.30, 0.70])
 
 # ---------------------------------------------------------
-# COLONNA SINISTRA — INPUT DATI
+# COLONNA SINISTRA — INPUT DATI (SCROLLABILE)
 # ---------------------------------------------------------
 
 with col1:
+    st.markdown('<div class="left-pane">', unsafe_allow_html=True)
+
     st.header("Parametri generali")
     anni = st.number_input("Arco temporale (anni)", 1, 30, 10)
     km_annui = st.number_input("Km annui previsti", 1000, 50000, 15000)
@@ -126,6 +148,8 @@ with col1:
         }
         autos_extra.append(auto)
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # ---------------------------------------------------------
 # CALCOLI
 # ---------------------------------------------------------
@@ -136,7 +160,6 @@ costi_diesel = calcola_costi_diesel(
     val_diesel, val_residuo_diesel
 )
 
-# Auto principale
 costi_auto_principale, costo_fin_totale = calcola_costi_elettrica(
     auto_principale, anni, km_annui, costo_corrente, perc_fv,
     anticipo, costo_istruttoria, costo_wallbox,
@@ -144,40 +167,13 @@ costi_auto_principale, costo_fin_totale = calcola_costi_elettrica(
 )
 
 # ---------------------------------------------------------
-# COLONNA DESTRA — GRAFICO + RIEPILOGO
+# COLONNA DESTRA — RIEPILOGO + GRAFICO (FISSI)
 # ---------------------------------------------------------
 
 with col2:
-    st.header("Grafico dei costi nel tempo")
+    st.markdown('<div class="right-pane">', unsafe_allow_html=True)
 
-    anni_list = list(range(anni + 1))
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=anni_list, y=costi_diesel, mode='lines+markers', name=nome_diesel))
-
-    fig.add_trace(go.Scatter(x=anni_list, y=costi_auto_principale, mode='lines+markers', name=auto_principale["nome"]))
-
-    for auto in autos_extra:
-        costi_extra, _ = calcola_costi_elettrica(
-            auto, anni, km_annui, costo_corrente, perc_fv,
-            anticipo, costo_istruttoria, costo_wallbox,
-            num_rate, tasso_annuo
-        )
-        fig.add_trace(go.Scatter(x=anni_list, y=costi_extra, mode='lines+markers', name=auto["nome"]))
-
-    fig.update_layout(
-        xaxis_title="Anni",
-        yaxis_title="Costo cumulato (€)",
-        hovermode="x unified",
-        height=600
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ---------------------------------------------------------
-    # RIEPILOGO COMPLETO
-    # ---------------------------------------------------------
-
+    # ---------------- RIEPILOGO IN CIMA ----------------
     st.header("Riepilogo completo")
 
     tempo_pareggio = None
@@ -204,3 +200,30 @@ with col2:
     st.write(f"**Risparmio annuo medio:** {risparmio_annuo:,.0f} €")
     st.write(f"**Auto selezionata:** {auto_principale['nome']}")
 
+    # ---------------- GRAFICO ----------------
+    st.header("Grafico dei costi nel tempo")
+
+    anni_list = list(range(anni + 1))
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=anni_list, y=costi_diesel, mode='lines+markers', name=nome_diesel))
+    fig.add_trace(go.Scatter(x=anni_list, y=costi_auto_principale, mode='lines+markers', name=auto_principale["nome"]))
+
+    for auto in autos_extra:
+        costi_extra, _ = calcola_costi_elettrica(
+            auto, anni, km_annui, costo_corrente, perc_fv,
+            anticipo, costo_istruttoria, costo_wallbox,
+            num_rate, tasso_annuo
+        )
+        fig.add_trace(go.Scatter(x=anni_list, y=costi_extra, mode='lines+markers', name=auto["nome"]))
+
+    fig.update_layout(
+        xaxis_title="Anni",
+        yaxis_title="Costo cumulato (€)",
+        hovermode="x unified",
+        height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
